@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes.js";
 import companyRoutes from "./routes/company.routes.js";
 import jobRoutes from "./routes/job.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
 import initWebSocket from "./websocket/ws.server.js";
 import "./workers/application.worker.js";
 
@@ -21,15 +22,13 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/companies", companyRoutes);
 app.use("/api/jobs", jobRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok", message: "DevHire API running" });
 });
 
-// HTTP server banao — WS iske upar chale ga
 const server = createServer(app);
-
-// WebSocket attach karo
 initWebSocket(server);
 
 server.listen(PORT, () => {

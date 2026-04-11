@@ -1,0 +1,100 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  DEVELOPER
+  RECRUITER
+}
+
+enum ApplicationStatus {
+  PENDING
+  REVIEWED
+  SHORTLISTED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(DEVELOPER)
+  skills       String[] @default([])
+  resumeText   String?  @map("resume_text")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  company      Company?
+  applications Application[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  logoUrl     String?  @map("logo_url")
+  recruiterId String   @unique @map("recruiter_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  recruiter User  @relation(fields: [recruiterId], references: [id])
+  jobs      Job[]
+
+  @@map("companies")
+}
+
+model Job {
+  id             String   @id @default(uuid())
+  title          String
+  description    String
+  requiredSkills String[] @map("required_skills")
+  salaryMin      Int?     @map("salary_min")
+  salaryMax      Int?     @map("salary_max")
+  location       String?
+  companyId      String   @map("company_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  applications Application[]
+
+  @@map("jobs")
+}
+
+model Application {
+  id          String            @id @default(uuid())
+  jobId       String            @map("job_id")
+  developerId String            @map("developer_id")
+  status      ApplicationStatus @default(PENDING)
+  matchScore  Int?              @map("match_score")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  job       Job  @relation(fields: [jobId], references: [id])
+  developer User @relation(fields: [developerId], references: [id])
+
+  @@unique([jobId, developerId])
+  @@map("applications")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  message   String
+  type      String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}

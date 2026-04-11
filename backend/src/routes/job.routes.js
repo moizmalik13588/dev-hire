@@ -4,6 +4,7 @@ import prisma from "../config/db.js";
 import verifyToken from "../middleware/auth.js";
 import allowRoles from "../middleware/rbac.js";
 import calculateMatchScore from "../services/matching.service.js";
+import { applicationQueue } from "../config/queue.js";
 
 const router = express.Router();
 
@@ -134,13 +135,13 @@ router.post(
         return res.status(409).json({ message: "Already applied to this job" });
       }
 
-      // Developer ki skills fetch karo
+      // Developer skills fetch karo
       const developer = await prisma.user.findUnique({
         where: { id: req.user.id },
         select: { skills: true },
       });
 
-      // Match score calculate karo
+      // Initial match score
       const { score } = calculateMatchScore(
         developer.skills,
         job.requiredSkills,
@@ -155,8 +156,18 @@ router.post(
         },
       });
 
+      // BullMQ queue mein daalo — background processing
+      await applicationQueue.add("process-application", {
+        applicationId: application.id,
+        developerId: req.user.id,
+        jobId: job.id,
+      });
+
+      console.log(`📥 Application queued for processing: ${application.id}`);
+
+      // Immediately respond — user wait nahi karega
       res.status(201).json({
-        message: "Application submitted",
+        message: "Application submitted successfully",
         application,
         matchScore: score,
       });

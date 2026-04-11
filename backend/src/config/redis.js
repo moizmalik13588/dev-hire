@@ -1,8 +1,19 @@
 import { Redis } from "ioredis";
 import "dotenv/config";
 
+// BullMQ + General use
 const redis = new Redis(process.env.REDIS_URL, {
-  maxRetriesPerRequest: null, // BullMQ ke liye required
+  maxRetriesPerRequest: null,
+});
+
+// Publisher — events publish karne ke liye
+export const publisher = new Redis(process.env.REDIS_URL, {
+  maxRetriesPerRequest: null,
+});
+
+// Subscriber — events sunne ke liye
+export const subscriber = new Redis(process.env.REDIS_URL, {
+  maxRetriesPerRequest: null,
 });
 
 redis.on("connect", () => console.log("✅ Redis connected"));

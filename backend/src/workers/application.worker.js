@@ -1,5 +1,5 @@
 import { Worker } from "bullmq";
-import { connection } from "../config/redis.js";
+import { connection, publisher } from "../config/redis.js";
 import prisma from "../config/db.js";
 import calculateMatchScore from "../services/matching.service.js";
 
@@ -10,7 +10,6 @@ const applicationWorker = new Worker(
 
     console.log(`⚙️  Processing application: ${applicationId}`);
 
-    // 1. Developer aur Job fetch karo
     const [developer, jobPost] = await Promise.all([
       prisma.user.findUnique({
         where: { id: developerId },
@@ -26,26 +25,36 @@ const applicationWorker = new Worker(
       throw new Error("Developer or Job not found");
     }
 
-    // 2. Match score calculate karo
     const { score, matchedSkills, missingSkills } = calculateMatchScore(
       developer.skills,
       jobPost.requiredSkills,
     );
 
-    // 3. Application update karo score ke saath
     await prisma.application.update({
       where: { id: applicationId },
       data: { matchScore: score },
     });
 
-    // 4. Notification banao
-    await prisma.notification.create({
+    // Notification DB mein save karo
+    const notification = await prisma.notification.create({
       data: {
         userId: developerId,
-        message: `Your application for "${jobPost.title}" has been received! Match score: ${score}%`,
+        message: `Your application for "${jobPost.title}" was received! Match score: ${score}%`,
         type: "APPLICATION_RECEIVED",
       },
     });
+
+    // Redis pe publish karo — WS server sunega
+    await publisher.publish(
+      `notifications:${developerId}`,
+      JSON.stringify({
+        type: "APPLICATION_RECEIVED",
+        notification,
+        matchScore: score,
+        matchedSkills,
+        missingSkills,
+      }),
+    );
 
     console.log(`✅ Application processed — Score: ${score}%`);
     console.log(`   Matched: ${matchedSkills.join(", ")}`);
@@ -53,13 +62,9 @@ const applicationWorker = new Worker(
 
     return { score, matchedSkills, missingSkills };
   },
-  {
-    connection,
-    concurrency: 5, // 5 applications ek saath process
-  },
+  { connection, concurrency: 5 },
 );
 
-// Worker events
 applicationWorker.on("completed", (job, result) => {
   console.log(`🎉 Job ${job.id} completed — Match: ${result.score}%`);
 });

@@ -1,11 +1,13 @@
 import express from "express";
+import { createServer } from "http";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes.js";
 import companyRoutes from "./routes/company.routes.js";
 import jobRoutes from "./routes/job.routes.js";
-import "./workers/application.worker.js"; // Worker start
+import initWebSocket from "./websocket/ws.server.js";
+import "./workers/application.worker.js";
 
 dotenv.config();
 
@@ -24,6 +26,12 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", message: "DevHire API running" });
 });
 
-app.listen(PORT, () => {
+// HTTP server banao — WS iske upar chale ga
+const server = createServer(app);
+
+// WebSocket attach karo
+initWebSocket(server);
+
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

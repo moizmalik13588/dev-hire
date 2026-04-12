@@ -55,6 +55,10 @@ router.post(
         },
       });
 
+      // ⬇️ Yahan add karo — job create hone ke baad cache clear karo
+      const keys = await redis.keys("jobs:*");
+      if (keys.length > 0) await redis.del(...keys);
+
       res.status(201).json({ message: "Job posted", job });
     } catch (err) {
       console.error(err);
@@ -67,15 +71,19 @@ router.post(
 router.get("/", async (req, res) => {
   try {
     const { search, skill, location } = req.query;
+    const cacheKey = `jobs:${search || ""}:${skill || ""}:${location || ""}`;
+
+    // Cache check karo pehle
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log("⚡ Cache hit:", cacheKey);
+      return res.json(JSON.parse(cached));
+    }
 
     const jobs = await prisma.job.findMany({
       where: {
-        ...(search && {
-          title: { contains: search, mode: "insensitive" },
-        }),
-        ...(skill && {
-          requiredSkills: { has: skill },
-        }),
+        ...(search && { title: { contains: search, mode: "insensitive" } }),
+        ...(skill && { requiredSkills: { has: skill } }),
         ...(location && {
           location: { contains: location, mode: "insensitive" },
         }),
@@ -86,6 +94,10 @@ router.get("/", async (req, res) => {
       },
       orderBy: { createdAt: "desc" },
     });
+
+    // Cache mein save karo — 5 minute ke liye
+    await redis.setex(cacheKey, 300, JSON.stringify(jobs));
+    console.log("💾 Cached:", cacheKey);
 
     res.json(jobs);
   } catch (err) {

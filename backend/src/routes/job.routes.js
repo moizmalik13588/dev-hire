@@ -5,6 +5,7 @@ import verifyToken from "../middleware/auth.js";
 import allowRoles from "../middleware/rbac.js";
 import calculateMatchScore from "../services/matching.service.js";
 import { applicationQueue } from "../config/queue.js";
+import redis from "../config/redis.js";
 
 const router = express.Router();
 

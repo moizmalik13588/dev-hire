@@ -53,12 +53,24 @@ router.get("/me", verifyToken, allowRoles("RECRUITER"), async (req, res) => {
   try {
     const company = await prisma.company.findUnique({
       where: { recruiterId: req.user.id },
-      include: { jobs: true },
+      include: {
+        jobs: {
+          include: {
+            _count: { select: { applications: true } },
+          },
+        },
+      },
     });
 
     if (!company) return res.status(404).json({ message: "No company found" });
 
-    res.json(company);
+    // Total applications count manually calculate karo
+    const totalApplications = company.jobs.reduce(
+      (acc, job) => acc + (job._count?.applications || 0),
+      0,
+    );
+
+    res.json({ ...company, totalApplications });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

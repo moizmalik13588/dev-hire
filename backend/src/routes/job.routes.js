@@ -66,7 +66,7 @@ router.post(
 // ─── GET ALL JOBS (Public) ────────────────────────────────
 router.get("/", async (req, res) => {
   try {
-    const { search, skill } = req.query;
+    const { search, skill, location } = req.query;
 
     const jobs = await prisma.job.findMany({
       where: {
@@ -75,6 +75,9 @@ router.get("/", async (req, res) => {
         }),
         ...(skill && {
           requiredSkills: { has: skill },
+        }),
+        ...(location && {
+          location: { contains: location, mode: "insensitive" },
         }),
       },
       include: {
@@ -92,6 +95,33 @@ router.get("/", async (req, res) => {
 });
 
 // ─── GET SINGLE JOB (Public) ──────────────────────────────
+
+// ─── GET MY APPLICATIONS (Developer) ─────────────────────
+router.get(
+  "/my/applications",
+  verifyToken,
+  allowRoles("DEVELOPER"),
+  async (req, res) => {
+    try {
+      const applications = await prisma.application.findMany({
+        where: { developerId: req.user.id },
+        include: {
+          job: {
+            include: {
+              company: { select: { name: true, logoUrl: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      res.json(applications);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
 router.get("/:id", async (req, res) => {
   try {
     const job = await prisma.job.findUnique({
@@ -177,34 +207,6 @@ router.post(
     }
   },
 );
-
-// ─── GET MY APPLICATIONS (Developer) ─────────────────────
-router.get(
-  "/my/applications",
-  verifyToken,
-  allowRoles("DEVELOPER"),
-  async (req, res) => {
-    try {
-      const applications = await prisma.application.findMany({
-        where: { developerId: req.user.id },
-        include: {
-          job: {
-            include: {
-              company: { select: { name: true, logoUrl: true } },
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      });
-
-      res.json(applications);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
-    }
-  },
-);
-
 // ─── GET JOB APPLICATIONS (Recruiter) ────────────────────
 router.get(
   "/:id/applications",

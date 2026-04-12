@@ -1,3 +1,4 @@
+import redis from "../config/redis.js";
 import { Redis } from "ioredis";
 import "dotenv/config";
 

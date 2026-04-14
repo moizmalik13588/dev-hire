@@ -36,7 +36,6 @@ router.post(
     } = req.body;
 
     try {
-      // Recruiter ki company hai?
       const company = await prisma.company.findUnique({
         where: { recruiterId: req.user.id },
       });
@@ -56,7 +55,6 @@ router.post(
         },
       });
 
-      // ⬇️ Yahan add karo — job create hone ke baad cache clear karo
       const keys = await redis.keys("jobs:*");
       if (keys.length > 0) await redis.del(...keys);
 
@@ -74,7 +72,6 @@ router.get("/", async (req, res) => {
     const { search, skill, location } = req.query;
     const cacheKey = `jobs:${search || ""}:${skill || ""}:${location || ""}`;
 
-    // Cache check karo pehle
     const cached = await redis.get(cacheKey);
     if (cached) {
       console.log("⚡ Cache hit:", cacheKey);
@@ -96,7 +93,6 @@ router.get("/", async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // Cache mein save karo — 5 minute ke liye
     await redis.setex(cacheKey, 300, JSON.stringify(jobs));
     console.log("💾 Cached:", cacheKey);
 
@@ -106,8 +102,6 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
-// ─── GET SINGLE JOB (Public) ──────────────────────────────
 
 // ─── GET MY APPLICATIONS (Developer) ─────────────────────
 router.get(
@@ -135,6 +129,32 @@ router.get(
   },
 );
 
+// ─── GET JOB APPLICATIONS (Recruiter) ────────────────────
+router.get(
+  "/:id/applications",
+  verifyToken,
+  allowRoles("RECRUITER"),
+  async (req, res) => {
+    try {
+      const applications = await prisma.application.findMany({
+        where: { jobId: req.params.id },
+        include: {
+          developer: {
+            select: { id: true, name: true, email: true, skills: true },
+          },
+        },
+        orderBy: { matchScore: "desc" },
+      });
+
+      res.json(applications);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
+// ─── GET SINGLE JOB (Public) ──────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
     const job = await prisma.job.findUnique({
@@ -165,7 +185,6 @@ router.post(
       });
       if (!job) return res.status(404).json({ message: "Job not found" });
 
-      // Already applied?
       const existing = await prisma.application.findUnique({
         where: {
           jobId_developerId: {
@@ -178,19 +197,16 @@ router.post(
         return res.status(409).json({ message: "Already applied to this job" });
       }
 
-      // Developer skills fetch karo
       const developer = await prisma.user.findUnique({
         where: { id: req.user.id },
         select: { skills: true },
       });
 
-      // Initial match score
       const { score } = calculateMatchScore(
         developer.skills,
         job.requiredSkills,
       );
 
-      // Application banao
       const application = await prisma.application.create({
         data: {
           jobId: job.id,
@@ -199,45 +215,19 @@ router.post(
         },
       });
 
-      // BullMQ queue mein daalo — background processing
       await applicationQueue.add("process-application", {
         applicationId: application.id,
         developerId: req.user.id,
         jobId: job.id,
       });
 
-      console.log(`📥 Application queued for processing: ${application.id}`);
+      console.log(`📥 Application queued: ${application.id}`);
 
-      // Immediately respond — user wait nahi karega
       res.status(201).json({
         message: "Application submitted successfully",
         application,
         matchScore: score,
       });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Server error" });
-    }
-  },
-);
-// ─── GET JOB APPLICATIONS (Recruiter) ────────────────────
-router.get(
-  "/:id/applications",
-  verifyToken,
-  allowRoles("RECRUITER"),
-  async (req, res) => {
-    try {
-      const applications = await prisma.application.findMany({
-        where: { jobId: req.params.id },
-        include: {
-          developer: {
-            select: { id: true, name: true, email: true, skills: true },
-          },
-        },
-        orderBy: { matchScore: "desc" },
-      });
-
-      res.json(applications);
     } catch (err) {
       console.error(err);
       res.status(500).json({ message: "Server error" });

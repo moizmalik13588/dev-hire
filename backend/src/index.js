@@ -15,16 +15,18 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  }),
+);
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://dev-hire-beta.vercel.app/", // apna Vercel URL daalo
-    ],
+    origin: ["http://localhost:5173", "https://dev-hire-beta.vercel.app"],
     credentials: true,
   }),
 );
+app.options("*", cors());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);

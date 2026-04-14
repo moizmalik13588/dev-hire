@@ -8,7 +8,8 @@ const useWebSocket = () => {
     const token = localStorage.getItem("accessToken");
     if (!token) return;
 
-    ws.current = new WebSocket(`ws://localhost:5000?token=${token}`);
+    const wsUrl = import.meta.env.VITE_WS_URL || "ws://localhost:5000";
+    ws.current = new WebSocket(`${wsUrl}?token=${token}`);
 
     ws.current.onopen = () => console.log("🔌 WS Connected");
 

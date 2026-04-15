@@ -11,7 +11,6 @@ import {
   DollarSign,
 } from "lucide-react";
 
-const [applicationsCache, setApplicationsCache] = useState({});
 const SKILLS = [
   "Node.js",
   "React",
@@ -59,7 +58,6 @@ const Dashboard = () => {
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [showJobModal, setShowJobModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
-  const [applications, setApplications] = useState([]);
   const [companyForm, setCompanyForm] = useState({ name: "", description: "" });
   const [jobForm, setJobForm] = useState({
     title: "",
@@ -69,6 +67,8 @@ const Dashboard = () => {
     salaryMax: "",
     location: "",
   });
+  const [applications, setApplications] = useState([]);
+  const [applicationsCache, setApplicationsCache] = useState({}); // yahan add karo
 
   useEffect(() => {
     fetchDashboard();
@@ -150,7 +150,13 @@ const Dashboard = () => {
     try {
       await api.patch(`/jobs/applications/${appId}/status`, { status });
       toast.success("Status updated!");
-      viewApplications(selectedJob);
+      // Cache clear karo is job ka
+      setApplicationsCache((prev) => {
+        const updated = { ...prev };
+        delete updated[selectedJob.id];
+        return updated;
+      });
+      viewApplications(selectedJob); // fresh fetch hoga
     } catch {
       toast.error("Failed to update");
     }

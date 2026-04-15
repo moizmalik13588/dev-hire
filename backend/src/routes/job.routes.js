@@ -220,8 +220,10 @@ router.post(
         developerId: req.user.id,
         jobId: job.id,
       });
-
       console.log(`📥 Application queued: ${application.id}`);
+
+      const keys = await redis.keys("jobs:*");
+      if (keys.length > 0) await redis.del(...keys);
 
       res.status(201).json({
         message: "Application submitted successfully",

@@ -147,18 +147,24 @@ const Dashboard = () => {
   };
 
   const updateStatus = async (appId, status) => {
+    // Pehle UI update karo instantly
+    setApplications((prev) =>
+      prev.map((app) => (app.id === appId ? { ...app, status } : app)),
+    );
+
     try {
       await api.patch(`/jobs/applications/${appId}/status`, { status });
       toast.success("Status updated!");
-      // Cache clear karo is job ka
+      // Cache clear karo
       setApplicationsCache((prev) => {
         const updated = { ...prev };
         delete updated[selectedJob.id];
         return updated;
       });
-      viewApplications(selectedJob); // fresh fetch hoga
     } catch {
       toast.error("Failed to update");
+      // Failure pe wapas fetch karo
+      viewApplications(selectedJob);
     }
   };
 

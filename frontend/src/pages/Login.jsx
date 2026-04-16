@@ -69,7 +69,9 @@ const Login = () => {
     try {
       const user = await login(form.email, form.password);
       toast.success(`Welcome back, ${user.name}!`);
-      navigate(user.role === "RECRUITER" ? "/dashboard" : "/jobs");
+      navigate(user.role === "RECRUITER" ? "/dashboard" : "/jobs", {
+        replace: true,
+      });
     } catch (err) {
       const msg = err.response?.data?.message || "Login failed";
       if (msg.toLowerCase().includes("password")) {

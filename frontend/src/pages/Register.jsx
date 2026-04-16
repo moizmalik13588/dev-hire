@@ -111,7 +111,9 @@ const Register = () => {
     try {
       const user = await register(form);
       toast.success(`Welcome, ${user.name}!`);
-      navigate(user.role === "RECRUITER" ? "/dashboard" : "/jobs");
+      navigate(user.role === "RECRUITER" ? "/dashboard" : "/jobs", {
+        replace: true,
+      });
     } catch (err) {
       const msg = err.response?.data?.message || "Registration failed";
       if (msg.toLowerCase().includes("email")) {

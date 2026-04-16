@@ -55,8 +55,11 @@ router.post(
         },
       });
 
+      // Job create hone ke baad cache clear karo
       const keys = await redis.keys("jobs:*");
       if (keys.length > 0) await redis.del(...keys);
+      await redis.del(`company:${req.user.id}`);
+      console.log("🗑️ Cache cleared: jobs + company");
 
       res.status(201).json({ message: "Job posted", job });
     } catch (err) {
@@ -110,6 +113,15 @@ router.get(
   allowRoles("DEVELOPER"),
   async (req, res) => {
     try {
+      const cacheKey = `applications:${req.user.id}`;
+
+      // Cache check
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        console.log("⚡ Cache hit:", cacheKey);
+        return res.json(JSON.parse(cached));
+      }
+
       const applications = await prisma.application.findMany({
         where: { developerId: req.user.id },
         include: {
@@ -121,6 +133,11 @@ router.get(
         },
         orderBy: { createdAt: "desc" },
       });
+
+      // Cache mein save karo — 2 min
+      await redis.setex(cacheKey, 120, JSON.stringify(applications));
+      console.log("💾 Cached:", cacheKey);
+
       res.json(applications);
     } catch (err) {
       console.error(err);
@@ -214,6 +231,8 @@ router.post(
           matchScore: score,
         },
       });
+      await redis.del(`applications:${req.user.id}`);
+      console.log("🗑️ Cache cleared: applications");
 
       await applicationQueue.add("process-application", {
         applicationId: application.id,

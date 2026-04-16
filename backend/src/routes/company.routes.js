@@ -3,6 +3,7 @@ import { body, validationResult } from "express-validator";
 import prisma from "../config/db.js";
 import verifyToken from "../middleware/auth.js";
 import allowRoles from "../middleware/rbac.js";
+import redis from "../config/redis.js";
 
 const router = express.Router();
 
@@ -51,6 +52,15 @@ router.post(
 // ─── GET MY COMPANY (Recruiter) ───────────────────────────
 router.get("/me", verifyToken, allowRoles("RECRUITER"), async (req, res) => {
   try {
+    const cacheKey = `company:${req.user.id}`;
+
+    // Cache check
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log("⚡ Cache hit:", cacheKey);
+      return res.json(JSON.parse(cached));
+    }
+
     const company = await prisma.company.findUnique({
       where: { recruiterId: req.user.id },
       include: {
@@ -64,13 +74,18 @@ router.get("/me", verifyToken, allowRoles("RECRUITER"), async (req, res) => {
 
     if (!company) return res.status(404).json({ message: "No company found" });
 
-    // Total applications count manually calculate karo
     const totalApplications = company.jobs.reduce(
       (acc, job) => acc + (job._count?.applications || 0),
       0,
     );
 
-    res.json({ ...company, totalApplications });
+    const result = { ...company, totalApplications };
+
+    // Cache mein save karo — 2 min
+    await redis.setex(cacheKey, 120, JSON.stringify(result));
+    console.log("💾 Cached:", cacheKey);
+
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

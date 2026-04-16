@@ -3,6 +3,7 @@ import { body, validationResult } from "express-validator";
 import verifyToken from "../middleware/auth.js";
 import allowRoles from "../middleware/rbac.js";
 import prisma from "../config/db.js";
+import redis from "../config/redis.js";
 import {
   reviewResume,
   generateJobDescription,
@@ -28,7 +29,14 @@ router.post(
     const { resumeText, jobId } = req.body;
 
     try {
-      // Job details lo
+      // Cache key — user + job combination
+      const cacheKey = `resume:${req.user.id}:${jobId}`;
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        console.log("⚡ Cache hit:", cacheKey);
+        return res.json(JSON.parse(cached));
+      }
+
       const job = await prisma.job.findUnique({
         where: { id: jobId },
         select: { title: true, requiredSkills: true },
@@ -36,24 +44,28 @@ router.post(
       if (!job) return res.status(404).json({ message: "Job not found" });
 
       console.log(`🤖 Groq analyzing resume for: ${job.title}`);
-
       const analysis = await reviewResume(
         resumeText,
         job.title,
         job.requiredSkills,
       );
 
-      // Resume text user profile mein save karo
       await prisma.user.update({
         where: { id: req.user.id },
         data: { resumeText },
       });
 
-      res.json({
+      const result = {
         message: "Resume analyzed successfully",
         jobTitle: job.title,
         analysis,
-      });
+      };
+
+      // Cache mein save karo — 30 min
+      await redis.setex(cacheKey, 1800, JSON.stringify(result));
+      console.log("💾 Cached:", cacheKey);
+
+      res.json(result);
     } catch (err) {
       console.error("Groq error:", err);
       res.status(500).json({ message: "AI service error" });
@@ -116,24 +128,37 @@ router.post(
     const { jobId } = req.body;
 
     try {
+      // Cache check — same job pe same questions return karo
+      const cacheKey = `interview:${jobId}`;
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        console.log("⚡ Cache hit:", cacheKey);
+        return res.json(JSON.parse(cached));
+      }
+
       const job = await prisma.job.findUnique({
         where: { id: jobId },
         select: { title: true, requiredSkills: true },
       });
       if (!job) return res.status(404).json({ message: "Job not found" });
 
-      console.log(`🤖 Groq generating interview questions for: ${job.title}`);
-
+      console.log(`🤖 Groq generating questions for: ${job.title}`);
       const questions = await generateInterviewQuestions(
         job.title,
         job.requiredSkills,
       );
 
-      res.json({
+      const result = {
         message: "Interview questions generated",
         jobTitle: job.title,
         questions,
-      });
+      };
+
+      // Cache mein save karo — 1 hour (questions change nahi hoti)
+      await redis.setex(cacheKey, 3600, JSON.stringify(result));
+      console.log("💾 Cached:", cacheKey);
+
+      res.json(result);
     } catch (err) {
       console.error("Groq error:", err);
       res.status(500).json({ message: "AI service error" });

@@ -9,6 +9,7 @@ import {
   Building2,
   MapPin,
   DollarSign,
+  ChevronLeft,
 } from "lucide-react";
 
 const SKILLS = [
@@ -68,7 +69,9 @@ const Dashboard = () => {
     location: "",
   });
   const [applications, setApplications] = useState([]);
-  const [applicationsCache, setApplicationsCache] = useState({}); // yahan add karo
+  const [applicationsCache, setApplicationsCache] = useState({});
+  // Mobile: 'jobs' | 'applications'
+  const [mobileView, setMobileView] = useState("jobs");
 
   useEffect(() => {
     fetchDashboard();
@@ -129,33 +132,28 @@ const Dashboard = () => {
 
   const viewApplications = async (job) => {
     setSelectedJob(job);
+    setMobileView("applications"); // Mobile pe applications view pe jao
 
-    // Cache mein hai toh instant show karo
     if (applicationsCache[job.id]) {
       setApplications(applicationsCache[job.id]);
       return;
     }
-
     try {
       const res = await api.get(`/jobs/${job.id}/applications`);
       setApplications(res.data);
-      // Cache mein save karo
       setApplicationsCache((prev) => ({ ...prev, [job.id]: res.data }));
-    } catch (err) {
+    } catch {
       toast.error("Failed to load applications");
     }
   };
 
   const updateStatus = async (appId, status) => {
-    // Pehle UI update karo instantly
     setApplications((prev) =>
       prev.map((app) => (app.id === appId ? { ...app, status } : app)),
     );
-
     try {
       await api.patch(`/jobs/applications/${appId}/status`, { status });
       toast.success("Status updated!");
-      // Cache clear karo
       setApplicationsCache((prev) => {
         const updated = { ...prev };
         delete updated[selectedJob.id];
@@ -163,9 +161,13 @@ const Dashboard = () => {
       });
     } catch {
       toast.error("Failed to update");
-      // Failure pe wapas fetch karo
       viewApplications(selectedJob);
     }
+  };
+
+  const goBackToJobs = () => {
+    setMobileView("jobs");
+    setSelectedJob(null);
   };
 
   const inputClass =
@@ -173,7 +175,7 @@ const Dashboard = () => {
 
   if (!company)
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/40 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Building2 size={36} className="text-blue-600 dark:text-blue-400" />
@@ -191,7 +193,6 @@ const Dashboard = () => {
             <Plus size={18} /> Create Company
           </button>
         </div>
-
         {showCompanyModal && (
           <Modal
             title="Create Company"
@@ -252,61 +253,89 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-6">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 lg:px-6 py-4 lg:py-6">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Building2 size={22} className="text-white" />
+          <div className="flex items-center gap-3">
+            {/* Mobile: back button when viewing applications */}
+            {mobileView === "applications" && (
+              <button
+                onClick={goBackToJobs}
+                className="lg:hidden w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 mr-1"
+              >
+                <ChevronLeft
+                  size={22}
+                  className="text-gray-600 dark:text-gray-300"
+                />
+              </button>
+            )}
+            <div className="w-10 h-10 lg:w-12 lg:h-12 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Building2 size={20} className="text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-                {company.name}
+              <h1 className="text-lg lg:text-2xl font-bold text-gray-800 dark:text-white leading-tight">
+                {mobileView === "applications" && selectedJob ? (
+                  <span className="lg:hidden">{selectedJob.title}</span>
+                ) : (
+                  company.name
+                )}
+                <span className="hidden lg:inline">{company.name}</span>
               </h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm">
-                {jobs.length} active jobs
+              <p className="text-gray-500 dark:text-gray-400 text-xs lg:text-sm">
+                {mobileView === "applications" && selectedJob ? (
+                  <span className="lg:hidden">
+                    {applications.length} applicants
+                  </span>
+                ) : (
+                  `${jobs.length} active jobs`
+                )}
+                <span className="hidden lg:inline">
+                  {jobs.length} active jobs
+                </span>
               </p>
             </div>
           </div>
           <button
             onClick={() => setShowJobModal(true)}
-            className="bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 flex items-center gap-2 font-semibold"
+            className="bg-blue-600 text-white px-3 lg:px-5 py-2 lg:py-2.5 rounded-xl hover:bg-blue-700 flex items-center gap-1.5 lg:gap-2 font-semibold text-sm lg:text-base"
           >
-            <Plus size={18} /> Post a Job
+            <Plus size={16} />
+            <span className="hidden sm:inline">Post a Job</span>
+            <span className="sm:hidden">Post</span>
           </button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 lg:px-6 py-4 lg:py-8">
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-2 lg:gap-4 mb-4 lg:mb-8">
           {[
-            { label: "Total Jobs", value: jobs.length },
+            { label: "Jobs", value: jobs.length },
+            { label: "Applications", value: company.totalApplications || 0 },
             {
-              label: "Total Applications",
-              value: company.totalApplications || 0,
-            },
-            {
-              label: "Viewing Applications",
+              label: "Viewing",
               value: selectedJob ? applications.length : "—",
             },
           ].map((stat) => (
             <div
               key={stat.label}
-              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5"
+              className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 lg:p-5"
             >
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+              <p className="text-xs lg:text-sm text-gray-500 dark:text-gray-400 mb-1 truncate">
                 {stat.label}
               </p>
-              <p className="text-3xl font-bold text-gray-800 dark:text-white">
+              <p className="text-2xl lg:text-3xl font-bold text-gray-800 dark:text-white">
                 {stat.value}
               </p>
             </div>
           ))}
         </div>
 
-        <div className="flex gap-6">
-          {/* Left — Jobs */}
-          <div className="w-2/5">
+        {/* Desktop: side by side | Mobile: one at a time */}
+        <div className="lg:flex lg:gap-6">
+          {/* Jobs List — show on mobile only when mobileView === 'jobs' */}
+          <div
+            className={`lg:w-2/5 ${mobileView === "applications" ? "hidden lg:block" : "block"}`}
+          >
             <h2 className="font-bold text-gray-600 dark:text-gray-400 mb-3 text-xs uppercase tracking-wide">
               Your Jobs
             </h2>
@@ -332,15 +361,22 @@ const Dashboard = () => {
                   <div
                     key={job.id}
                     onClick={() => viewApplications(job)}
-                    className={`bg-white dark:bg-gray-800 rounded-xl border p-4 cursor-pointer transition-all hover:shadow-md ${
+                    className={`bg-white dark:bg-gray-800 rounded-xl border p-4 cursor-pointer transition-all active:scale-[0.99] hover:shadow-md ${
                       selectedJob?.id === job.id
                         ? "border-blue-500 shadow-md"
                         : "border-gray-200 dark:border-gray-700"
                     }`}
                   >
-                    <h3 className="font-semibold text-gray-800 dark:text-white">
-                      {job.title}
-                    </h3>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-gray-800 dark:text-white">
+                        {job.title}
+                      </h3>
+                      {/* Mobile: arrow indicator */}
+                      <ChevronLeft
+                        size={16}
+                        className="lg:hidden rotate-180 text-gray-400 flex-shrink-0 mt-0.5"
+                      />
+                    </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
                       {job.location && (
                         <span className="flex items-center gap-1">
@@ -376,8 +412,10 @@ const Dashboard = () => {
             )}
           </div>
 
-          {/* Right — Applications */}
-          <div className="flex-1">
+          {/* Applications — show on mobile only when mobileView === 'applications' */}
+          <div
+            className={`flex-1 ${mobileView === "jobs" ? "hidden lg:block" : "block"}`}
+          >
             <h2 className="font-bold text-gray-600 dark:text-gray-400 mb-3 text-xs uppercase tracking-wide">
               {selectedJob
                 ? `Applications — ${selectedJob.title}`
@@ -409,25 +447,25 @@ const Dashboard = () => {
                 {applications.map((app) => (
                   <div
                     key={app.id}
-                    className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5"
+                    className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 lg:p-5"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
                           {app.developer.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <p className="font-semibold text-gray-800 dark:text-white">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-800 dark:text-white truncate">
                             {app.developer.name}
                           </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                             {app.developer.email}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
                         <div className="text-right">
-                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                          <p className="text-xl lg:text-2xl font-bold text-blue-600 dark:text-blue-400">
                             {app.matchScore}%
                           </p>
                           <p className="text-xs text-gray-400 dark:text-gray-500">
@@ -437,7 +475,7 @@ const Dashboard = () => {
                         <select
                           value={app.status}
                           onChange={(e) => updateStatus(app.id, e.target.value)}
-                          className="border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                          className="border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1.5 text-xs lg:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                         >
                           <option>PENDING</option>
                           <option>REVIEWED</option>

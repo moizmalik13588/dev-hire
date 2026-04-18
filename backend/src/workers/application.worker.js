@@ -1,11 +1,10 @@
-import { Worker } from "bullmq";
-import { connection, publisher } from "../config/redis.js";
 import prisma from "../config/db.js";
 import calculateMatchScore from "../services/matching.service.js";
 
-// Production mein Upstash hai — BullMQ compatible nahi
-// Isliye worker sirf development mein chalega
 if (process.env.NODE_ENV !== "production") {
+  const { Worker } = await import("bullmq");
+  const { connection, publisher } = await import("../config/redis.js");
+
   const applicationWorker = new Worker(
     "applications",
     async (job) => {
@@ -63,11 +62,9 @@ if (process.env.NODE_ENV !== "production") {
   applicationWorker.on("completed", (job, result) => {
     console.log(`🎉 Job ${job.id} completed — Match: ${result.score}%`);
   });
-
   applicationWorker.on("failed", (job, err) => {
     console.error(`❌ Job ${job.id} failed:`, err.message);
   });
-
   applicationWorker.on("error", (err) => {
     console.error("Worker error:", err.message);
   });

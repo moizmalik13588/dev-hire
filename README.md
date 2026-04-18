@@ -10,13 +10,15 @@
 ![Groq](https://img.shields.io/badge/AI-Groq%20llama--3.3-orange?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
 
+**Live Demo:** [dev-hire-beta.vercel.app](https://dev-hire-beta.vercel.app)
+
 ---
 
 ## 📌 Overview
 
-DevHire is a production-grade full-stack job board platform that connects developers with top Pakistani tech companies. It features AI-powered resume screening, real-time notifications, smart skill-based candidate matching, and a scalable architecture built to handle **10,000+ concurrent users**.
+DevHire is a production-grade full-stack job board platform that connects developers with top Pakistani tech companies — Arbisoft, 10Pearls, and Nextbridge. It features AI-powered resume screening, smart skill-based candidate matching, real-time notifications, and a scalable architecture.
 
-Built with Nginx load balancing, PgBouncer connection pooling, Redis caching, and BullMQ background job processing — following production best practices from day one.
+Built following production best practices — JWT auth, RBAC, Redis caching, BullMQ background processing, WebSockets, and Docker — all implemented from scratch.
 
 ---
 
@@ -26,7 +28,7 @@ Built with Nginx load balancing, PgBouncer connection pooling, Redis caching, an
 - 🔍 Browse and search jobs by title, skill, or location
 - ⚡ Real-time application status notifications via WebSocket
 - 🤖 AI Resume Reviewer — instant feedback powered by Groq (llama-3.3-70b)
-- 🤖 AI Interview Prep — likely interview questions for any job
+- 🤖 AI Interview Prep — tailored interview questions for any job
 - 🎯 Smart match score — see how well your skills match a job
 - 📊 Application tracker with status timeline
 
@@ -41,10 +43,12 @@ Built with Nginx load balancing, PgBouncer connection pooling, Redis caching, an
 ### Platform
 - 🔐 JWT Authentication with Refresh Tokens
 - 🛡️ Role-Based Access Control (Developer / Recruiter)
-- 🔄 Background job processing with BullMQ
-- 💾 Redis caching — 80% reduction in DB queries
-- 🌐 Nginx load balancing across multiple backend instances
-- 🐳 Fully Dockerized — one command deployment
+- 🔄 Background job processing with BullMQ (development)
+- 💾 Redis caching with smart cache invalidation
+- 🌐 Nginx load balancer config ready
+- 🐳 Fully Dockerized — one command local setup
+- 🌙 Dark mode support
+- 📱 Fully responsive — mobile + desktop
 
 ---
 
@@ -62,7 +66,7 @@ Internet
        ┌────────┴────────┐
        │                 │
   ┌────▼────┐       ┌────▼────┐
-  │  Node   │  ...  │  Node   │   (3 Replicas)
+  │  Node   │  ...  │  Node   │   (3 Replicas — Docker)
   │   #1    │       │   #3    │
   └────┬────┘       └────┬────┘
        └────────┬─────────┘
@@ -90,7 +94,7 @@ Internet
 | **Database** | PostgreSQL 15 + Prisma ORM |
 | **Cache / Queue** | Redis 7 + BullMQ |
 | **AI** | Groq API (llama-3.3-70b-versatile) |
-| **Real-time** | WebSockets (ws) |
+| **Real-time** | WebSockets (ws) + Redis Pub/Sub |
 | **Load Balancer** | Nginx |
 | **Connection Pool** | PgBouncer |
 | **Auth** | JWT + bcrypt |
@@ -121,7 +125,7 @@ devhire/
 │   │   │   ├── matching.service.js    # Match score algorithm
 │   │   │   └── groq.service.js        # AI integrations
 │   │   ├── workers/
-│   │   │   └── application.worker.js  # BullMQ worker
+│   │   │   └── application.worker.js  # BullMQ worker (dev only)
 │   │   └── websocket/
 │   │       └── ws.server.js           # WebSocket server
 │   ├── prisma/
@@ -137,12 +141,14 @@ devhire/
 │   │   │   ├── Jobs.jsx               # Job board (Indeed-style)
 │   │   │   ├── Dashboard.jsx          # Recruiter dashboard
 │   │   │   ├── MyApplications.jsx     # Developer applications
+│   │   │   ├── AITools.jsx            # Resume review + Interview prep
 │   │   │   ├── Login.jsx
 │   │   │   └── Register.jsx
 │   │   ├── components/
-│   │   │   └── Navbar.jsx             # Responsive navbar
+│   │   │   └── Navbar.jsx             # Responsive navbar + dark mode
 │   │   ├── context/
-│   │   │   └── AuthContext.jsx        # Auth state management
+│   │   │   ├── AuthContext.jsx        # Auth state management
+│   │   │   └── ThemeContext.jsx       # Dark mode
 │   │   ├── hooks/
 │   │   │   └── useWebSocket.js        # WebSocket hook
 │   │   └── services/
@@ -166,7 +172,7 @@ devhire/
 - Docker Desktop
 - Git
 
-### Development Setup
+### Local Development Setup
 
 ```bash
 # 1. Clone the repo
@@ -215,7 +221,7 @@ JWT_REFRESH_EXPIRES_IN=7d
 GROQ_API_KEY=your_groq_key_here
 ```
 
-### Production Deployment
+### Production Deployment (Docker)
 
 ```bash
 # Production with Nginx + PgBouncer + 3 Backend replicas
@@ -239,13 +245,14 @@ docker compose -f docker-compose.prod.yml up -d
 
 | Method | Endpoint | Description | Access |
 |---|---|---|---|
-| GET | `/api/jobs` | List all jobs | Public |
+| GET | `/api/jobs` | List all jobs (cached) | Public |
 | GET | `/api/jobs/:id` | Get job detail | Public |
 | POST | `/api/jobs` | Post a job | Recruiter |
 | POST | `/api/jobs/:id/apply` | Apply to job | Developer |
-| GET | `/api/jobs/my/applications` | My applications | Developer |
+| GET | `/api/jobs/my/applications` | My applications (cached) | Developer |
 | GET | `/api/jobs/:id/applications` | Job applicants | Recruiter |
 | PATCH | `/api/jobs/applications/:id/status` | Update status | Recruiter |
+| DELETE | `/api/jobs/:id` | Delete job | Recruiter |
 
 ### Companies
 
@@ -253,16 +260,16 @@ docker compose -f docker-compose.prod.yml up -d
 |---|---|---|---|
 | POST | `/api/companies` | Create company | Recruiter |
 | GET | `/api/companies` | List companies | Public |
-| GET | `/api/companies/me` | My company | Recruiter |
+| GET | `/api/companies/me` | My company (cached) | Recruiter |
 | PUT | `/api/companies` | Update company | Recruiter |
 
 ### AI
 
 | Method | Endpoint | Description | Access |
 |---|---|---|---|
-| POST | `/api/ai/resume-review` | AI resume analysis | Developer |
+| POST | `/api/ai/resume-review` | AI resume analysis (cached 30min) | Developer |
 | POST | `/api/ai/generate-jd` | AI job description generator | Recruiter |
-| POST | `/api/ai/interview-prep` | Interview questions | Developer |
+| POST | `/api/ai/interview-prep` | Interview questions (cached 1hr) | Developer |
 
 ### WebSocket
 
@@ -298,17 +305,31 @@ Simple, transparent, and effective — no black box AI needed for matching.
 
 ---
 
+## 💾 Caching Strategy
+
+| Endpoint | Cache Key | TTL | Invalidated When |
+|---|---|---|---|
+| GET /jobs | `jobs:search:skill:location` | 5 min | New job posted |
+| GET /my/applications | `applications:userId` | 2 min | User applies |
+| GET /companies/me | `company:userId` | 2 min | Job posted |
+| POST /ai/interview-prep | `interview:jobId` | 1 hour | Never (static) |
+| POST /ai/resume-review | `resume:userId:jobId` | 30 min | Never |
+
+---
+
 ## 📈 Scalability
 
 | Concern | Solution |
 |---|---|
 | High traffic | Nginx load balancing (3+ replicas) |
 | DB connections | PgBouncer (1000 clients → 25 DB connections) |
-| Repeated queries | Redis caching (5 min TTL, LRU eviction) |
-| Heavy operations | BullMQ background processing (5 concurrent workers) |
+| Repeated queries | Redis caching with smart invalidation |
+| Heavy operations | BullMQ background processing |
 | Real-time push | Redis Pub/Sub + WebSockets |
-| Memory pressure | Redis maxmemory 256mb + allkeys-lru policy |
+| Memory pressure | Redis maxmemory + allkeys-lru policy |
 | Process crashes | PM2 cluster mode + auto-restart |
+
+> **Note:** Current free-tier deployment (Railway + Supabase) handles ~200-500 concurrent users. The architecture is designed to scale further with paid infrastructure — multiple replicas, dedicated Redis, and PgBouncer active.
 
 ---
 
@@ -327,8 +348,8 @@ Simple, transparent, and effective — no black box AI needed for matching.
 
 - JWT access tokens (15 min) + refresh tokens (7 days)
 - bcrypt password hashing (12 rounds)
-- Role-based route protection
-- Redis-based rate limiting (100 req/min per IP)
+- Role-based route protection (RBAC)
+- Rate limiting — 100 req/min per IP
 - Helmet.js HTTP security headers
 - Input validation on all endpoints (express-validator)
 - Environment variables — no secrets in code

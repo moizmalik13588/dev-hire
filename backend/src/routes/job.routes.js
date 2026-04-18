@@ -231,18 +231,33 @@ router.post(
           matchScore: score,
         },
       });
-      await redis.del(`applications:${req.user.id}`);
-      console.log("🗑️ Cache cleared: applications");
 
-      await applicationQueue.add("process-application", {
-        applicationId: application.id,
-        developerId: req.user.id,
-        jobId: job.id,
-      });
-      console.log(`📥 Application queued: ${application.id}`);
+      // Production mein directly process karo — BullMQ nahi
+      if (process.env.NODE_ENV === "production") {
+        // Notification directly banao
+        await prisma.notification.create({
+          data: {
+            userId: req.user.id,
+            message: `Your application for "${job.title}" was received! Match score: ${score}%`,
+            type: "APPLICATION_RECEIVED",
+          },
+        });
+        // Cache clear karo
+        await redis.del(`applications:${req.user.id}`);
+      } else {
+        // Development mein queue use karo
+        await applicationQueue.add("process-application", {
+          applicationId: application.id,
+          developerId: req.user.id,
+          jobId: job.id,
+        });
+        console.log(`📥 Application queued: ${application.id}`);
+      }
 
+      // Jobs cache clear
       const keys = await redis.keys("jobs:*");
       if (keys.length > 0) await redis.del(...keys);
+      await redis.del(`company:${req.user.id}`);
 
       res.status(201).json({
         message: "Application submitted successfully",

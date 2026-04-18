@@ -1,9 +1,8 @@
-import { Redis } from 'ioredis'
-import 'dotenv/config'
+import { Redis } from "ioredis";
+import "dotenv/config";
 
-const isProduction = process.env.NODE_ENV === 'production'
+const redisUrl = process.env.REDIS_URL;
 
-// Dummy Redis — production mein requests waste nahi hongi
 const dummyRedis = {
   get: async () => null,
   set: async () => null,
@@ -14,32 +13,30 @@ const dummyRedis = {
   subscribe: async () => null,
   unsubscribe: async () => null,
   on: () => {},
-  ping: async () => 'PONG',
-}
+};
 
-let redisClient, publisherClient, subscriberClient
-
-if (isProduction) {
-  console.log('⚠️  Production mode — Redis disabled (Upstash free tier)')
-  redisClient = dummyRedis
-  publisherClient = dummyRedis
-  subscriberClient = dummyRedis
-} else {
-  redisClient = new Redis(process.env.REDIS_URL, {
+const createRedis = (url) => {
+  if (!url) {
+    console.log("⚠️  No REDIS_URL — using dummy Redis");
+    return dummyRedis;
+  }
+  const client = new Redis(url, {
     maxRetriesPerRequest: null,
-  })
-  publisherClient = new Redis(process.env.REDIS_URL, {
-    maxRetriesPerRequest: null,
-  })
-  subscriberClient = new Redis(process.env.REDIS_URL, {
-    maxRetriesPerRequest: null,
-  })
+    enableReadyCheck: false,
+    lazyConnect: true,
+    retryStrategy: (times) => {
+      if (times > 3) return null;
+      return Math.min(times * 500, 2000);
+    },
+  });
+  client.on("connect", () => console.log("✅ Redis connected"));
+  client.on("error", (err) => console.error("❌ Redis error:", err.message));
+  return client;
+};
 
-  redisClient.on('connect', () => console.log('✅ Redis connected'))
-  redisClient.on('error', (err) => console.error('❌ Redis error:', err.message))
-}
+const redisClient = createRedis(redisUrl);
 
-export { publisherClient as publisher }
-export { subscriberClient as subscriber }
-export { redisClient as connection }
-export default redisClient
+export const publisher = dummyRedis;
+export const subscriber = dummyRedis;
+export { redisClient as connection };
+export default redisClient;

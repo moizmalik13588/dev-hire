@@ -1,7 +1,16 @@
 import { useState, useEffect } from "react";
 import api from "../services/api";
 import toast from "react-hot-toast";
-import { Briefcase, MapPin, DollarSign, Clock, ArrowLeft } from "lucide-react";
+import {
+  Briefcase,
+  MapPin,
+  DollarSign,
+  Clock,
+  ArrowLeft,
+  Mic,
+  Trophy,
+} from "lucide-react";
+import InterviewModal from "./InterviewModal";
 
 const statusConfig = {
   PENDING: {
@@ -31,13 +40,27 @@ const MyApplications = () => {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [interviewApp, setInterviewApp] = useState(null);
+  const [interviewResults, setInterviewResults] = useState({});
+
+  const fetchInterviewResult = async (appId) => {
+    try {
+      const res = await api.get(`/interview/result/${appId}`);
+      setInterviewResults((prev) => ({ ...prev, [appId]: res.data }));
+    } catch {
+      // No interview yet — silent fail
+    }
+  };
 
   useEffect(() => {
     api
       .get("/jobs/my/applications")
       .then((res) => {
         setApplications(res.data);
-        if (res.data.length > 0) setSelected(res.data[0]);
+        if (res.data.length > 0) {
+          setSelected(res.data[0]);
+          res.data.forEach((app) => fetchInterviewResult(app.id));
+        }
       })
       .catch(() => toast.error("Failed to load"))
       .finally(() => setLoading(false));
@@ -58,16 +81,21 @@ const MyApplications = () => {
 
   const DetailPanel = ({ app }) => (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+      {/* Back button — mobile only */}
       <button
         onClick={() => setShowDetail(false)}
         className="md:hidden flex items-center gap-2 text-blue-600 mb-4 font-medium"
       >
         <ArrowLeft size={18} /> Back
       </button>
+
+      {/* Job Title & Company */}
       <h2 className="text-2xl font-bold text-gray-800 dark:text-white">
         {app.job.title}
       </h2>
       <p className="text-blue-600 font-medium mt-1">{app.job.company?.name}</p>
+
+      {/* Meta info */}
       <div className="flex flex-wrap gap-3 mt-3 text-sm text-gray-500 dark:text-gray-400">
         {app.job.location && (
           <span className="flex items-center gap-1">
@@ -88,6 +116,7 @@ const MyApplications = () => {
         </span>
       </div>
 
+      {/* Match Score */}
       <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 my-4">
         <div className="flex items-center justify-between mb-2">
           <p className="text-sm font-semibold text-blue-700 dark:text-blue-400">
@@ -114,6 +143,7 @@ const MyApplications = () => {
         </p>
       </div>
 
+      {/* Application Status Timeline */}
       <div className="mb-4">
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
           Application Status
@@ -136,6 +166,7 @@ const MyApplications = () => {
         </div>
       </div>
 
+      {/* Required Skills */}
       <div className="mb-4">
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
           Required Skills
@@ -152,8 +183,9 @@ const MyApplications = () => {
         </div>
       </div>
 
+      {/* Job Description */}
       {app.job.description && (
-        <div>
+        <div className="mb-4">
           <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
             Job Description
           </p>
@@ -162,6 +194,110 @@ const MyApplications = () => {
           </p>
         </div>
       )}
+
+      {/* ── Voice Interview Section ── */}
+      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          🎙️ Voice Interview
+        </p>
+
+        {/* Interview Completed — show score + feedback */}
+        {interviewResults[app.id]?.status === "COMPLETED" ? (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Trophy size={18} className="text-green-600" />
+                <span className="font-semibold text-green-700 dark:text-green-400">
+                  Interview Score
+                </span>
+              </div>
+              <span className="text-3xl font-bold text-green-600 dark:text-green-400">
+                {interviewResults[app.id].score}/100
+              </span>
+            </div>
+
+            {/* Score Bar */}
+            <div className="w-full bg-green-100 dark:bg-green-900 rounded-full h-2">
+              <div
+                className="bg-green-500 h-2 rounded-full transition-all"
+                style={{ width: `${interviewResults[app.id].score}%` }}
+              />
+            </div>
+
+            {/* Feedback */}
+            {interviewResults[app.id].feedback && (
+              <p className="text-sm text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/40 rounded-lg p-3">
+                {interviewResults[app.id].feedback}
+              </p>
+            )}
+
+            {/* Strengths */}
+            {interviewResults[app.id].strengths?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-green-700 dark:text-green-400 mb-1">
+                  ✅ Strengths
+                </p>
+                <ul className="space-y-1">
+                  {interviewResults[app.id].strengths.map((s, i) => (
+                    <li
+                      key={i}
+                      className="text-xs text-green-600 dark:text-green-300 flex items-start gap-1"
+                    >
+                      <span className="mt-0.5">•</span> {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Improvements */}
+            {interviewResults[app.id].improvements?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 mb-1">
+                  🔧 Areas to Improve
+                </p>
+                <ul className="space-y-1">
+                  {interviewResults[app.id].improvements.map((s, i) => (
+                    <li
+                      key={i}
+                      className="text-xs text-orange-600 dark:text-orange-300 flex items-start gap-1"
+                    >
+                      <span className="mt-0.5">•</span> {s}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        ) : interviewResults[app.id]?.status === "IN_PROGRESS" ? (
+          /* Interview in progress */
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 text-center">
+            <p className="text-yellow-700 dark:text-yellow-300 text-sm font-medium">
+              ⏳ Interview in progress — please complete it
+            </p>
+            <button
+              onClick={() => setInterviewApp(app)}
+              className="mt-3 text-yellow-700 dark:text-yellow-300 text-xs underline"
+            >
+              Resume Interview
+            </button>
+          </div>
+        ) : (
+          /* Not started yet */
+          <div className="space-y-2">
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              Take a short AI voice interview to boost your application
+              visibility.
+            </p>
+            <button
+              onClick={() => setInterviewApp(app)}
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white py-3 rounded-xl font-semibold text-sm transition-all shadow-md shadow-blue-200 dark:shadow-none"
+            >
+              <Mic size={18} /> Start Voice Interview
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 
@@ -174,6 +310,7 @@ const MyApplications = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Page Header */}
       <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 py-5">
         <div className="max-w-5xl mx-auto">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
@@ -195,6 +332,7 @@ const MyApplications = () => {
           </div>
         ) : (
           <>
+            {/* ── Mobile Layout ── */}
             <div className="md:hidden">
               {showDetail && selected ? (
                 <DetailPanel app={selected} />
@@ -234,9 +372,17 @@ const MyApplications = () => {
                         >
                           {statusConfig[app.status]?.label}
                         </span>
-                        <span className="text-xs text-gray-400">
-                          {timeAgo(app.createdAt)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {/* Interview badge on card */}
+                          {interviewResults[app.id]?.status === "COMPLETED" && (
+                            <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
+                              🏆 {interviewResults[app.id].score}/100
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-400">
+                            {timeAgo(app.createdAt)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -244,7 +390,9 @@ const MyApplications = () => {
               )}
             </div>
 
+            {/* ── Desktop Layout ── */}
             <div className="hidden md:flex gap-6">
+              {/* Left: Application List */}
               <div className="w-2/5 space-y-2">
                 {applications.map((app) => (
                   <div
@@ -284,13 +432,23 @@ const MyApplications = () => {
                       >
                         {statusConfig[app.status]?.label}
                       </span>
-                      <span className="text-xs text-gray-400">
-                        {timeAgo(app.createdAt)}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {/* Interview score badge */}
+                        {interviewResults[app.id]?.status === "COMPLETED" && (
+                          <span className="text-xs bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 px-2 py-0.5 rounded-full font-medium">
+                            🏆 {interviewResults[app.id].score}/100
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {timeAgo(app.createdAt)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Right: Detail Panel */}
               <div className="flex-1">
                 {selected && <DetailPanel app={selected} />}
               </div>
@@ -298,6 +456,22 @@ const MyApplications = () => {
           </>
         )}
       </div>
+
+      {/* ── Interview Modal ── */}
+      {interviewApp && (
+        <InterviewModal
+          application={interviewApp}
+          onClose={() => setInterviewApp(null)}
+          onComplete={() => {
+            setInterviewApp(null);
+            toast.success("Interview complete! Results coming soon... 🎉");
+            // 5 sec baad result fetch karo (webhook process hone ka time)
+            setTimeout(() => {
+              fetchInterviewResult(interviewApp.id);
+            }, 5000);
+          }}
+        />
+      )}
     </div>
   );
 };
